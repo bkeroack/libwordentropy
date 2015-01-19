@@ -1,3 +1,4 @@
+// Pseudo-grammatical passphrase generation library
 package wordentropy
 
 import (
@@ -36,17 +37,29 @@ var GRAMMAR_RULES = map[string][]string{
 var DEFAULT_SYMBOLS = []string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "-", "+", "_", "="}
 var word_types = []string{"snoun", "pnoun", "verb", "adjective", "adverb", "preposition", "pronoun", "conjunction", "sarticle", "particle", "interjection"}
 
+// Options for loading word list
 type WordMapOptions struct {
 	Wordlist_path  string
 	Offensive_path string
 }
 
+func LoadGenerator(o *WordMapOptions) (*Generator, error) {
+	g := Generator{}
+	err := g.LoadWords(o)
+	if err != nil {
+		return nil, err
+	}
+	return &g, nil
+}
+
+// Top-level Generator object
 type Generator struct {
 	word_map  map[string][]string
 	offensive map[string]uint
 	options   *GenerateOptions
 }
 
+// Options for passphrase generation
 type GenerateOptions struct {
 	Count  uint
 	Length uint
@@ -130,6 +143,7 @@ func (g *Generator) generate_passphrase() []string {
 	return phrase_slice
 }
 
+// Load and parse word list into memory. Must be executed successfully prior to passphrase generation.
 func (g *Generator) LoadWords(o *WordMapOptions) error {
 	var err error
 	if o.Wordlist_path != "" {
@@ -148,13 +162,12 @@ func (g *Generator) LoadWords(o *WordMapOptions) error {
 		}
 	}
 
-	log.Printf("l: %v, l2: %v\n", len(g.word_map), len(g.offensive))
 	return nil
 }
 
 func (g *Generator) check_options() error {
 	if g.options == nil {
-		return errors.New("Missing GenerateOptions")
+		g.options = &GenerateOptions{}
 	}
 	if g.options.Count > COUNT_MAX {
 		return fmt.Errorf("Count exceeds max: %v", COUNT_MAX)
@@ -180,7 +193,7 @@ func (g *Generator) check_options() error {
 	return nil
 }
 
-//Generate count number of random passphrases of size length from word_map
+// Generate passphrases according to options provided.
 func (g *Generator) GeneratePassphrases(options *GenerateOptions) ([]string, error) {
 	// Generate count passphrase slices
 	// Merge each passphrase slice into a single string
@@ -236,7 +249,7 @@ func load_offensive_words(p string) (map[string]uint, error) {
 	return offensive, nil
 }
 
-//Load Wordnet into a mapping of word type to words of that type
+//Load word list into a mapping of word type to words of that type
 func load_wordmap(p string) (map[string][]string, error) {
 
 	word_map := map[string][]string{

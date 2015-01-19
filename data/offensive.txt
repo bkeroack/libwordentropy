@@ -1,0 +1,1 @@
+../../wordentropy2/data/offensive.txt

@@ -8,13 +8,10 @@ func TestPassphrases(t *testing.T) {
 
 	var ops GenerateOptions
 
-	g := Generator{}
-	word_ops := WordMapOptions{
+	g, err := LoadGenerator(&WordMapOptions{
 		Wordlist_path:  "data/part-of-speech.txt",
 		Offensive_path: "data/offensive.txt",
-	}
-
-	err := g.LoadWords(&word_ops)
+	})
 	if err != nil {
 		t.Fatalf("Could not load wordlist: %v", err)
 	}
@@ -30,13 +27,11 @@ func TestPassphrases(t *testing.T) {
 }
 
 func BenchmarkPassphrases(b *testing.B) {
-	g := Generator{}
-	word_ops := WordMapOptions{
+
+	g, err := LoadGenerator(&WordMapOptions{
 		Wordlist_path:  "data/part-of-speech.txt",
 		Offensive_path: "data/offensive.txt",
-	}
-
-	err := g.LoadWords(&word_ops)
+	})
 	if err != nil {
 		b.Fatalf("Could not load wordlist: %v", err)
 	}
