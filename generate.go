@@ -1,4 +1,4 @@
-// Pseudo-grammatical passphrase generation library
+// Pseudo-grammatical English passphrase generation library
 package wordentropy
 
 import (
@@ -11,16 +11,15 @@ import (
 )
 
 const (
-	COUNT_MAX        = 99
-	COUNT_DEFAULT    = 4
-	LENGTH_MAX       = 99
-	LENGTH_DEFAULT   = 5
-	FRAGMENT_MAX     = 99
-	FRAGMENT_DEFAULT = 4
+	count_max        = 99
+	count_default    = 4
+	length_max       = 99
+	length_default   = 5
+	fragment_max     = 99
+	fragment_default = 4
 )
 
-// word_type -> "can be followed by..."
-var GRAMMAR_RULES = map[string][]string{
+var grammar_rules = map[string][]string{ // word_type -> "can be followed by..."
 	"snoun":        []string{"adverb", "verb", "pronoun", "conjunction"},
 	"pnoun":        []string{"adverb", "verb", "pronoun", "conjunction"},
 	"verb":         []string{"snoun", "pnoun", "preposition", "adjective", "conjunction", "sarticle", "particle"},
@@ -34,15 +33,16 @@ var GRAMMAR_RULES = map[string][]string{
 	"interjection": []string{"snoun", "pnoun", "preposition", "adjective", "conjunction", "sarticle", "particle"},
 }
 
-var DEFAULT_SYMBOLS = []string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "-", "+", "_", "="}
+var default_symbols = []string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "-", "+", "_", "="}
 var word_types = []string{"snoun", "pnoun", "verb", "adjective", "adverb", "preposition", "pronoun", "conjunction", "sarticle", "particle", "interjection"}
 
-// Options for loading word list
+// Options for loading word list. Wordlist_path is required, Offensive_path is optional.
 type WordMapOptions struct {
 	Wordlist_path  string
 	Offensive_path string
 }
 
+// Load wordlist from disk and return a Generator object.
 func LoadGenerator(o *WordMapOptions) (*Generator, error) {
 	g := Generator{}
 	err := g.LoadWords(o)
@@ -59,19 +59,16 @@ type Generator struct {
 	options   *GenerateOptions
 }
 
-// Options for passphrase generation
+// Options for passphrase generation. All fields have sane defaults, none are required.
 type GenerateOptions struct {
-	Count  uint
-	Length uint
-	// With this algorithm we get best results when we limit the number of consecutive words,
-	// then string fragments together with conjunctions. Otherwise we get a really long
-	// run-on word salad that is not convincingly grammatical.
-	Magic_fragment_length uint
-	Prudish               bool
-	No_spaces             bool
-	Add_digit             bool
-	Add_symbol            bool
-	Symbols               []string
+	Count                 uint     // Number of passphrases to generate
+	Length                uint     // Length in words of each passphrase
+	Magic_fragment_length uint     // Number of words per fragment
+	Prudish               bool     // Filter out words in "offensive" wordlist
+	No_spaces             bool     // Do not add spaces between words
+	Add_digit             bool     // Add a random digit to the end of each passphrase
+	Add_symbol            bool     // Add a random symbol to the end of each passphrase
+	Symbols               []string // Slice of valid symbols to use with the Add_symbol option
 }
 
 func (g *Generator) random_word(word_type string) string {
@@ -113,11 +110,11 @@ func (g *Generator) generate_fragment() []string {
 	this_word_type := ""
 	for i := uint(1); i < fragment_length; i++ {
 		// Get random allowed word type by type of the previous word
-		next_word_type_count := int32(len(GRAMMAR_RULES[word_types[prev_type_index]]) - 1)
+		next_word_type_count := int32(len(grammar_rules[word_types[prev_type_index]]) - 1)
 		if next_word_type_count > 0 { //rand.Int31n cannot take zero as a param
-			this_word_type = GRAMMAR_RULES[word_types[prev_type_index]][random_range(int64(next_word_type_count))]
+			this_word_type = grammar_rules[word_types[prev_type_index]][random_range(int64(next_word_type_count))]
 		} else {
-			this_word_type = GRAMMAR_RULES[word_types[prev_type_index]][0]
+			this_word_type = grammar_rules[word_types[prev_type_index]][0]
 		}
 		fragment_slice[i] = g.random_word(this_word_type) //Random word of the allowed random type
 		for j, v := range word_types {                    // Update previous word type with current word type for next iteration
@@ -143,7 +140,7 @@ func (g *Generator) generate_passphrase() []string {
 	return phrase_slice
 }
 
-// Load and parse word list into memory. Must be executed successfully prior to passphrase generation.
+// Load and parse word list into memory.
 func (g *Generator) LoadWords(o *WordMapOptions) error {
 	var err error
 	if o.Wordlist_path != "" {
@@ -169,31 +166,31 @@ func (g *Generator) check_options() error {
 	if g.options == nil {
 		g.options = &GenerateOptions{}
 	}
-	if g.options.Count > COUNT_MAX {
-		return fmt.Errorf("Count exceeds max: %v", COUNT_MAX)
+	if g.options.Count > count_max {
+		return fmt.Errorf("Count exceeds max: %v", count_max)
 	}
 	if g.options.Count == 0 {
-		g.options.Count = COUNT_DEFAULT
+		g.options.Count = count_default
 	}
-	if g.options.Length > LENGTH_MAX {
-		return fmt.Errorf("Length exceeds max: %v", LENGTH_MAX)
+	if g.options.Length > length_max {
+		return fmt.Errorf("Length exceeds max: %v", length_max)
 	}
 	if g.options.Length == 0 {
-		g.options.Length = LENGTH_DEFAULT
+		g.options.Length = length_default
 	}
-	if g.options.Magic_fragment_length > FRAGMENT_MAX {
-		return fmt.Errorf("Fragment length exceeds max: %v", FRAGMENT_MAX)
+	if g.options.Magic_fragment_length > fragment_max {
+		return fmt.Errorf("Fragment length exceeds max: %v", fragment_max)
 	}
 	if g.options.Magic_fragment_length == 0 {
-		g.options.Magic_fragment_length = FRAGMENT_DEFAULT
+		g.options.Magic_fragment_length = fragment_default
 	}
 	if len(g.options.Symbols) == 0 {
-		g.options.Symbols = DEFAULT_SYMBOLS
+		g.options.Symbols = default_symbols
 	}
 	return nil
 }
 
-// Generate passphrases according to options provided.
+// Generate and return passphrases according to options provided.
 func (g *Generator) GeneratePassphrases(options *GenerateOptions) ([]string, error) {
 	// Generate count passphrase slices
 	// Merge each passphrase slice into a single string
