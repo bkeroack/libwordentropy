@@ -36,14 +36,16 @@ var grammar_rules = map[string][]string{ // word_type -> "can be followed by..."
 var default_symbols = []string{"!", "@", "#", "$", "%", "^", "&", "*", "(", ")", "-", "+", "_", "="}
 var word_types = []string{"snoun", "pnoun", "verb", "adjective", "adverb", "preposition", "pronoun", "conjunction", "sarticle", "particle", "interjection"}
 
-// Options for loading word list. Wordlist_path is required, Offensive_path is optional.
-type WordMapOptions struct {
-	Wordlist_path  string
-	Offensive_path string
+// Options for loading word list. Wordlist is required, Offensive is optional.
+// Wordlist must be formatted according to http://wordlist.aspell.net/pos-readme
+// Offensive list must be ASCII/UTF8, one word per line
+type WordListOptions struct {
+	Wordlist  string // path to POS wordlist (required)
+	Offensive string // "offensive" wordlist for optional filtering
 }
 
 // Load wordlist from disk and return a Generator object.
-func LoadGenerator(o *WordMapOptions) (*Generator, error) {
+func LoadGenerator(o *WordListOptions) (*Generator, error) {
 	g := Generator{}
 	err := g.LoadWords(o)
 	if err != nil {
@@ -141,10 +143,10 @@ func (g *Generator) generate_passphrase() []string {
 }
 
 // Load and parse word list into memory.
-func (g *Generator) LoadWords(o *WordMapOptions) error {
+func (g *Generator) LoadWords(o *WordListOptions) error {
 	var err error
-	if o.Wordlist_path != "" {
-		g.word_map, err = load_wordmap(o.Wordlist_path)
+	if o.Wordlist != "" {
+		g.word_map, err = load_wordmap(o.Wordlist)
 		if err != nil {
 			return err
 		}
@@ -152,8 +154,8 @@ func (g *Generator) LoadWords(o *WordMapOptions) error {
 		return errors.New("Wordlist path is required")
 	}
 
-	if o.Offensive_path != "" {
-		g.offensive, err = load_offensive_words(o.Offensive_path)
+	if o.Offensive != "" {
+		g.offensive, err = load_offensive_words(o.Offensive)
 		if err != nil {
 			return err
 		}
