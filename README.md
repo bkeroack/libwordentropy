@@ -1,6 +1,10 @@
 libwordentropy - Random pseudo-grammatical passphrase generator
 ===============================================================
 
+https://www.wordentropy.org
+
+[API Documentation](http://godoc.org/github.com/bkeroack/libwordentropy)
+
 Installation:
 
 ```bash

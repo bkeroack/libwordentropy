@@ -45,7 +45,7 @@ type WordListOptions struct {
 	Offensive string // "offensive" wordlist for optional filtering
 }
 
-// Load wordlist from disk and return a Generator object.
+// Load wordlist from disk and return a pointer to a Generator object.
 func LoadGenerator(o *WordListOptions) (*Generator, error) {
 	g := Generator{}
 	err := g.LoadWords(o)
