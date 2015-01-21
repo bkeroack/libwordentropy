@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strings"
+	"sync"
 )
 
 const (
@@ -56,9 +57,10 @@ func LoadGenerator(o *WordListOptions) (*Generator, error) {
 
 // Top-level Generator object
 type Generator struct {
-	word_map  map[string][]string
-	offensive map[string]uint
-	options   *GenerateOptions
+	word_map   map[string][]string
+	offensive  map[string]uint
+	options    *GenerateOptions
+	sync.Mutex // Used only for loading/parsing word list
 }
 
 // Options for passphrase generation. All fields have sane defaults, none are required.
@@ -73,7 +75,7 @@ type GenerateOptions struct {
 	Symbols               []string // Slice of valid symbols to use with the Add_symbol option
 }
 
-func (g *Generator) random_word(word_type string) string {
+func (g *Generator) random_word(word_type string, o *GenerateOptions) string {
 	grw := func(words []string) (string, bool) {
 		word := random_choice(words)
 		_, ok := g.offensive[word]
@@ -82,7 +84,7 @@ func (g *Generator) random_word(word_type string) string {
 
 	if words, ok := g.word_map[word_type]; ok {
 		word, off := grw(words)
-		if g.options.Prudish && off {
+		if o.Prudish && off {
 			log.Printf("Got offensive word: %v\n", word)
 			i := 0
 			for i = 0; off && i < 10; i++ {
@@ -104,11 +106,11 @@ func (g *Generator) random_word(word_type string) string {
 }
 
 // A fragment is an autonomous run of words constructed using grammar rules
-func (g *Generator) generate_fragment() []string {
-	fragment_length := g.options.Magic_fragment_length
+func (g *Generator) generate_fragment(o *GenerateOptions) []string {
+	fragment_length := o.Magic_fragment_length
 	fragment_slice := make([]string, fragment_length)
-	prev_type_index := random_range(int64(len(word_types) - 1))    // Random initial word type
-	fragment_slice[0] = g.random_word(word_types[prev_type_index]) // Random initial word
+	prev_type_index := random_range(int64(len(word_types) - 1))       // Random initial word type
+	fragment_slice[0] = g.random_word(word_types[prev_type_index], o) // Random initial word
 	this_word_type := ""
 	for i := uint(1); i < fragment_length; i++ {
 		// Get random allowed word type by type of the previous word
@@ -118,8 +120,8 @@ func (g *Generator) generate_fragment() []string {
 		} else {
 			this_word_type = grammar_rules[word_types[prev_type_index]][0]
 		}
-		fragment_slice[i] = g.random_word(this_word_type) //Random word of the allowed random type
-		for j, v := range word_types {                    // Update previous word type with current word type for next iteration
+		fragment_slice[i] = g.random_word(this_word_type, o) //Random word of the allowed random type
+		for j, v := range word_types {                       // Update previous word type with current word type for next iteration
 			if v == this_word_type {
 				prev_type_index = int64(j)
 			}
@@ -128,15 +130,15 @@ func (g *Generator) generate_fragment() []string {
 	return fragment_slice
 }
 
-func (g *Generator) generate_passphrase() []string {
-	iterations := g.options.Length / g.options.Magic_fragment_length
+func (g *Generator) generate_passphrase(o *GenerateOptions) []string {
+	iterations := o.Length / o.Magic_fragment_length
 	phrase_slice := make([]string, 1)
 
-	phrase_slice = append(phrase_slice, g.generate_fragment()...)
+	phrase_slice = append(phrase_slice, g.generate_fragment(o)...)
 	if iterations >= 1 {
 		for i := uint(1); i <= iterations; i++ {
-			phrase_slice = append(phrase_slice, g.random_word("conjunction"))
-			phrase_slice = append(phrase_slice, g.generate_fragment()...)
+			phrase_slice = append(phrase_slice, g.random_word("conjunction", o))
+			phrase_slice = append(phrase_slice, g.generate_fragment(o)...)
 		}
 	}
 	return phrase_slice
@@ -145,6 +147,10 @@ func (g *Generator) generate_passphrase() []string {
 // Load and parse word list into memory.
 func (g *Generator) LoadWords(o *WordListOptions) error {
 	var err error
+
+	g.Lock()
+	defer g.Unlock()
+
 	if o.Wordlist != "" {
 		g.word_map, err = load_wordmap(o.Wordlist)
 		if err != nil {
@@ -164,30 +170,33 @@ func (g *Generator) LoadWords(o *WordListOptions) error {
 	return nil
 }
 
-func (g *Generator) check_options() error {
-	if g.options == nil {
-		g.options = &GenerateOptions{}
+func (g *Generator) check_options(o *GenerateOptions) error {
+	if o == nil {
+		o = &GenerateOptions{}
 	}
-	if g.options.Count > count_max {
+	if len(g.word_map) == 0 {
+		return fmt.Errorf("Empty wordlist, call LoadWords() first")
+	}
+	if o.Count > count_max {
 		return fmt.Errorf("Count exceeds max: %v", count_max)
 	}
-	if g.options.Count == 0 {
-		g.options.Count = count_default
+	if o.Count == 0 {
+		o.Count = count_default
 	}
-	if g.options.Length > length_max {
+	if o.Length > length_max {
 		return fmt.Errorf("Length exceeds max: %v", length_max)
 	}
-	if g.options.Length == 0 {
-		g.options.Length = length_default
+	if o.Length == 0 {
+		o.Length = length_default
 	}
-	if g.options.Magic_fragment_length > fragment_max {
+	if o.Magic_fragment_length > fragment_max {
 		return fmt.Errorf("Fragment length exceeds max: %v", fragment_max)
 	}
-	if g.options.Magic_fragment_length == 0 {
-		g.options.Magic_fragment_length = fragment_default
+	if o.Magic_fragment_length == 0 {
+		o.Magic_fragment_length = fragment_default
 	}
-	if len(g.options.Symbols) == 0 {
-		g.options.Symbols = default_symbols
+	if len(o.Symbols) == 0 {
+		o.Symbols = default_symbols
 	}
 	return nil
 }
@@ -201,30 +210,29 @@ func (g *Generator) GeneratePassphrases(options *GenerateOptions) ([]string, err
 	// Merge truncated slice back into string
 	// Return slice of strings (final random passphrases)
 
-	g.options = options
-	err := g.check_options()
+	err := g.check_options(options)
 	if err != nil {
 		return nil, err
 	}
-	passphrases := make([]string, g.options.Count)
+	passphrases := make([]string, options.Count)
 
 	var sep string
-	if g.options.No_spaces {
+	if options.No_spaces {
 		sep = ""
 	} else {
 		sep = " "
 	}
-	for i := uint(0); i < g.options.Count; i++ {
-		ps := g.generate_passphrase()
+	for i := uint(0); i < options.Count; i++ {
+		ps := g.generate_passphrase(options)
 		pj := strings.Join(ps, " ")
 		ps = strings.Split(pj, " ")
-		ps = ps[:g.options.Length+1]
+		ps = ps[:options.Length+1]
 		pp := strings.TrimSpace(strings.Join(ps, sep))
-		if g.options.Add_digit {
+		if options.Add_digit {
 			pp += random_digit()
 		}
-		if g.options.Add_symbol {
-			pp += random_choice(g.options.Symbols)
+		if options.Add_symbol {
+			pp += random_choice(options.Symbols)
 		}
 		passphrases[i] = pp
 	}
@@ -327,4 +335,9 @@ func load_wordmap(p string) (map[string][]string, error) {
 	}
 
 	return word_map, nil
+}
+
+// Get parsed wordlist as map of word type to words of that type
+func (g *Generator) GetWordMap() map[string][]string {
+	return g.word_map
 }
