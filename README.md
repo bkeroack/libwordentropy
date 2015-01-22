@@ -5,13 +5,13 @@ https://www.wordentropy.org
 
 [API Documentation](http://godoc.org/github.com/bkeroack/libwordentropy)
 
-Installation:
+**Installation**:
 
 ```bash
 $ go get github.com/bkeroack/libwordentropy
 ```
 
-Usage:
+**Usage**:
 
 ```go
 import (
@@ -33,13 +33,13 @@ for i := range p{
 }
 ```
 
-Speed:
+**Speed**:
 
 The majority of execution overhead is in loading and parsing the wordlist from disk (done by ``LoadGenerator()``)--in the range of several hundred milliseconds. After loading the wordlist, passphrase generation is performed in memory and is very fast.
 
 Using go test -bench on my Macbook with default passphrase settings, each call to ``GeneratePassphrases()`` completes in submillisecond time (in many cases less than 1/10 millisecond).
 
-Command Line Tool:
+**Command Line Generator**:
 
 ```bash
 $ cd libwordentropy/we
