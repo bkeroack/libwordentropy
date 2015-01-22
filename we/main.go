@@ -51,6 +51,9 @@ func main() {
 		wo.Offensive = *offensive_path
 	}
 	g, err := wordentropy.LoadGenerator(&wo)
+	if err != nil {
+		log.Fatalf("error loading wordlist: %v\n", err)
+	}
 
 	o := wordentropy.GenerateOptions{
 		Count:      uint(*count),
@@ -62,6 +65,7 @@ func main() {
 	}
 
 	msg(fmt.Sprintf("options: %v\n", o))
+
 	p, err := g.GeneratePassphrases(&o)
 	if err != nil {
 		log.Fatalf("error generating passphrases: %v\n", err)
